@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>POS & Inventario – Local-First (MVP)</title>
+  <meta name="description" content="Punto de Venta e Inventario local-first con IndexedDB, exportación CSV, y dashboard. Listo para monetizar como SaaS con sincronización futura." />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+  <script type="module" src="app.js" defer></script>
+</head>
+<body>
+  <header>
+    <div class="topbar">
+      <div class="brand">
+        <div class="logo" aria-hidden="true"></div>
+        <h1>POS & Inventario <span class="badge" id="badge-plan">Free</span></h1>
+      </div>
+      <div class="actions">
+        <button id="btn-export" title="Exportar CSV">Exportar CSV</button>
+        <button id="btn-backup" title="Descargar Backup JSON">Descargar Backup</button>
+        <button class="btn brand" id="btn-add-sale" title="Ir a Ventas">+ Venta rápida</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="layout">
+    <nav>
+      <div class="navlist">
+        <div class="navitem active" data-route="dashboard">📊 Dashboard</div>
+        <div class="navitem" data-route="productos">📦 Productos</div>
+        <div class="navitem" data-route="ventas">🧾 Ventas</div>
+        <div class="navitem" data-route="reportes">📈 Reportes</div>
+        <div class="navitem" data-route="ajustes">⚙️ Ajustes</div>
+      </div>
+    </nav>
+
+    <main>
+      <!-- DASHBOARD -->
+      <section id="view-dashboard">
+        <div class="grid cards">
+          <div class="card"><h3>Ingresos Hoy</h3><div class="metric" id="m-ingresos-hoy">$0.00</div></div>
+          <div class="card"><h3>Ventas Hoy</h3><div class="metric" id="m-ventas-hoy">0</div></div>
+          <div class="card"><h3>Inventario Total</h3><div class="metric" id="m-inventario">0</div></div>
+          <div class="card"><h3>Productos con Bajo Stock</h3><div class="metric" id="m-bajo-stock">0</div></div>
+        </div>
+        <div class="card" style="margin-top:16px">
+          <h3>Ventas (Últimos 7 días)</h3>
+          <canvas id="chart7"></canvas>
+        </div>
+      </section>
+
+      <!-- PRODUCTOS -->
+      <section id="view-productos" class="hidden">
+        <div class="card">
+          <div class="row">
+            <input id="p-sku" placeholder="SKU" autocomplete="off"/>
+            <input id="p-nombre" placeholder="Nombre" autocomplete="off"/>
+            <input id="p-precio" placeholder="Precio" type="number" step="0.01" min="0"/>
+            <input id="p-stock" placeholder="Stock" type="number" min="0"/>
+            <input id="p-min" placeholder="Stock Mín." type="number" min="0"/>
+            <button id="p-guardar">Guardar</button>
+            <span class="right badge" id="p-msg" aria-live="polite"></span>
+          </div>
+        </div>
+        <div class="card" style="margin-top:14px">
+          <div class="row" style="margin-bottom:8px">
+            <input id="p-buscar" placeholder="Buscar por nombre o SKU" style="flex:1" autocomplete="off"/>
+            <button id="p-borrar-todo" class="danger">Borrar todo</button>
+          </div>
+          <div id="productos-table"></div>
+        </div>
+      </section>
+
+      <!-- VENTAS -->
+      <section id="view-ventas" class="hidden">
+        <div class="card">
+          <div class="row">
+            <input id="v-sku" placeholder="SKU" autocomplete="off"/>
+            <input id="v-cant" placeholder="Cantidad" type="number" value="1" min="1"/>
+            <button id="v-agregar">Agregar</button>
+            <span class="right badge" id="v-msg" aria-live="polite"></span>
+          </div>
+        </div>
+        <div class="card" style="margin-top:14px">
+          <table id="venta-actual">
+            <thead><tr><th>SKU</th><th>Producto</th><th>Cant.</th><th>Precio</th><th>Total</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <div class="row" style="margin-top:12px">
+            <div class="badge">Subtotal: <span id="v-sub">$0.00</span></div>
+            <div class="badge">IVA 16%: <span id="v-iva">$0.00</span></div>
+            <div class="badge success">Total: <span id="v-total">$0.00</span></div>
+            <button class="right btn brand" id="v-cobrar">Cobrar</button>
+          </div>
+        </div>
+        <div class="card" style="margin-top:14px">
+          <h3>Historial de Ventas</h3>
+          <div id="ventas-historial"></div>
+        </div>
+      </section>
+
+      <!-- REPORTES -->
+      <section id="view-reportes" class="hidden">
+        <div class="grid cards">
+          <div class="card">
+            <h3>Top Productos</h3>
+            <div id="r-top"></div>
+          </div>
+          <div class="card">
+            <h3>Ventas por Día</h3>
+            <canvas id="chartReport"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <!-- AJUSTES -->
+      <section id="view-ajustes" class="hidden">
+        <div class="card">
+          <h3>Plan y Respaldo</h3>
+          <div class="row" style="margin-top:8px">
+            <select id="aj-plan">
+              <option value="free">Free</option>
+              <option value="pro">Pro</option>
+            </select>
+            <button id="aj-import">Importar Backup (.json)</button>
+            <input type="file" id="aj-file" class="hidden" accept="application/json" />
+          </div>
+        </div>
+        <div class="card" style="margin-top:14px">
+          <h3>Datos de la Tienda</h3>
+          <div class="row" style="margin-top:8px">
+            <input id="tienda-nombre" placeholder="Nombre de la tienda" autocomplete="organization"/>
+            <input id="tienda-rfc" placeholder="RFC (opcional)" autocomplete="off"/>
+            <input id="tienda-iva" type="number" step="0.01" value="16" min="0"/>
+            <button id="tienda-guardar">Guardar</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <footer>
+    <small>Local-First POS MVP • IndexedDB + PWA Ready • © 2025</small>
+  </footer>
+</body>
+</html>
